@@ -1,0 +1,99 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String?   @unique
+  username     String    @unique
+  passwordHash String?
+  isGuest      Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  profile      Profile?
+
+  // Call sessions
+  sessionsCreated Session[] @relation("UserA")
+  sessionsJoined  Session[] @relation("UserB")
+
+  // Moderation
+  reportsFiled    Report[]  @relation("Reporter")
+  reportsReceived Report[]  @relation("ReportedUser")
+  blocksInitiated Block[]   @relation("Blocker")
+  blocksReceived  Block[]   @relation("Blocked")
+
+  @@index([username])
+  @@index([createdAt])
+}
+
+model Profile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName       String
+  avatarUrl         String?
+  country           String?  @default("Worldwide")
+  preferredLanguage String?  @default("English")
+  interests         String[] @default([])
+  bio               String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([country])
+  @@index([preferredLanguage])
+}
+
+model Session {
+  id        String    @id @default(uuid())
+  userAId   String
+  userA     User      @relation("UserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId   String
+  userB     User      @relation("UserB", fields: [userBId], references: [id], onDelete: Cascade)
+  status    String    @default("ACTIVE") // ACTIVE, COMPLETED, TERMINATED
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  reports   Report[]
+
+  @@index([userAId])
+  @@index([userBId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  reporterId     String
+  reporter       User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId String
+  reportedUser   User     @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  sessionId      String?
+  session        Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  reason         String
+  details        String?
+  status         String   @default("PENDING")
+  createdAt      DateTime @default(now())
+
+  @@index([reporterId])
+  @@index([reportedUserId])
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+model Block {
+  id        String   @id @default(uuid())
+  blockerId String
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+}
